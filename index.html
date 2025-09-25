@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Future Self Letters ✉️</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #f9f9f9, #e3f2fd);
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background: #1565c0;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+    }
+    main {
+      padding: 1rem 2rem;
+      max-width: 800px;
+      margin: auto;
+    }
+    .letter-form, .letters-container {
+      background: white;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    input, textarea, button {
+      width: 100%;
+      padding: 0.75rem;
+      margin: 0.5rem 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+    }
+    button {
+      background: #1565c0;
+      color: white;
+      cursor: pointer;
+      border: none;
+    }
+    button:hover { background: #0d47a1; }
+
+    /* Envelope Card */
+    .envelope {
+      position: relative;
+      width: 100%;
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 12px;
+      cursor: pointer;
+      overflow: hidden;
+      perspective: 1000px;
+    }
+
+    /* Envelope closed look */
+    .envelope .flap {
+      width: 100%;
+      height: 60px;
+      background: #ffcc80;
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: top;
+      transition: transform 1s ease-in-out;
+      border-bottom: 2px solid #ffb74d;
+    }
+    .envelope.locked .flap {
+      transform: rotateX(0deg);
+    }
+    .envelope.unlocked .flap {
+      transform: rotateX(-180deg);
+    }
+
+    .envelope .body {
+      background: #fff3e0;
+      border: 2px solid #ffb74d;
+      border-radius: 0 0 12px 12px;
+      padding: 80px 1rem 1rem;
+    }
+
+    .letter-content { display: none; }
+    .envelope.unlocked .letter-content {
+      display: block;
+      animation: fadeIn 1s;
+    }
+
+    .countdown {
+      font-size: 0.9rem;
+      color: #333;
+      margin-top: 0.5rem;
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Future Self Letters ✉️</h1>
+    <p>Write letters to your future self. They’ll unlock when the time comes!</p>
+  </header>
+  <main>
+    <!-- Letter Form -->
+    <div class="letter-form">
+      <h2>Write a Letter</h2>
+      <input type="text" id="title" placeholder="Letter Title" required>
+      <textarea id="content" rows="5" placeholder="Write your letter here..." required></textarea>
+      <input type="datetime-local" id="unlockDate" required>
+      <input type="email" id="email" placeholder="Your Email (for unlock notification)" required>
+      <button onclick="saveLetter()">Save Letter</button>
+    </div>
+
+    <!-- Letters -->
+    <div class="letters-container">
+      <h2>Your Letters</h2>
+      <div id="lettersList"></div>
+    </div>
+  </main>
+
+  <script>
+    let letters = JSON.parse(localStorage.getItem("letters") || "[]");
+
+    function saveLetter() {
+      const title = document.getElementById("title").value;
+      const content = document.getElementById("content").value;
+      const unlockDate = document.getElementById("unlockDate").value;
+      const email = document.getElementById("email").value;
+
+      if (!title || !content || !unlockDate || !email) {
+        alert("Please fill all fields!");
+        return;
+      }
+
+      const letter = { title, content, unlockDate, email, sent: false };
+      letters.push(letter);
+      localStorage.setItem("letters", JSON.stringify(letters));
+      displayLetters();
+    }
+
+    function displayLetters() {
+      const container = document.getElementById("lettersList");
+      container.innerHTML = "";
+      const now = new Date();
+
+      letters.forEach((letter, index) => {
+        const unlockDate = new Date(letter.unlockDate);
+        const isUnlocked = now >= unlockDate;
+
+        const div = document.createElement("div");
+        div.className = "envelope " + (isUnlocked ? "unlocked" : "locked");
+
+        div.innerHTML = `
+          <div class="flap"></div>
+          <div class="body">
+            <h3>${letter.title}</h3>
+            <div class="letter-content">
+              <p>${letter.content}</p>
+              <small>📬 Delivered to: ${letter.email}</small><br>
+              <button onclick="exportPDF(${index})">Export as PDF</button>
+            </div>
+            ${!isUnlocked ? `<div class="countdown" id="countdown-${index}"></div>` : ""}
+          </div>
+        `;
+        container.appendChild(div);
+
+        if (!isUnlocked) {
+          startCountdown(unlockDate, index);
+        }
+      });
+    }
+
+    function startCountdown(unlockDate, index) {
+      function updateCountdown() {
+        const now = new Date().getTime();
+        const distance = unlockDate.getTime() - now;
+
+        if (distance <= 0) {
+          displayLetters();
+          return;
+        }
+
+        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+        const countdownEl = document.getElementById("countdown-" + index);
+        if (countdownEl) {
+          countdownEl.textContent = `⏳ Unlocks in ${days}d ${hours}h ${minutes}m ${seconds}s`;
+        }
+      }
+      setInterval(updateCountdown, 1000);
+      updateCountdown();
+    }
+
+    async function exportPDF(index) {
+      const { jsPDF } = window.jspdf;
+      const letter = letters[index];
+      const doc = new jsPDF();
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text(letter.title, 20, 20);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(12);
+      doc.text(letter.content, 20, 40, { maxWidth: 170 });
+
+      doc.setFontSize(10);
+      doc.text(`Delivered to: ${letter.email}`, 20, 280);
+
+      doc.save(`${letter.title}.pdf`);
+    }
+
+    displayLetters();
+  </script>
+</body>
+</html>
